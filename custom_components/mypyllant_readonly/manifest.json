@@ -1,0 +1,10 @@
+{
+  "domain": "mypyllant_readonly",
+  "name": "myVAILLANT Energy (Read-only)",
+  "config_flow": true,
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "loggers": ["myPyllant"],
+  "requirements": ["myPyllant==0.9.10"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,48 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "There's already an entry for this user",
+      "reauth_successful": "Re-authentication was successful",
+      "wrong_account": "The account does not match the configured user"
+    },
+    "step": {
+      "user": {
+        "title": "Login Information",
+        "description": "Same credentials as the myVAILLANT app",
+        "data": {
+          "username": "[%key:common::config_flow::data::email%]",
+          "password": "[%key:common::config_flow::data::password%]",
+          "brand": "Brand",
+          "country": "Country"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate to myVAILLANT",
+        "description": "Same credentials as the myVAILLANT app",
+        "data": {
+          "username": "[%key:common::config_flow::data::email%]",
+          "password": "[%key:common::config_flow::data::password%]",
+          "brand": "Brand",
+          "country": "Country"
+        }
+      }
+    },
+    "error": {
+      "authentication_failed": "Authentication failed — check email, password, brand and country",
+      "login_endpoint_invalid": "No login endpoint found for this brand/country combination",
+      "realm_invalid": "This brand requires a country to be selected",
+      "already_configured": "An entry for this user already exists",
+      "wrong_account": "This account does not match the configured user",
+      "unknown": "Unexpected error — check logs for details"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "update_interval": "Seconds between energy data refreshes (lowering this risks quota errors)"
+        }
+      }
+    }
+  }
+}
