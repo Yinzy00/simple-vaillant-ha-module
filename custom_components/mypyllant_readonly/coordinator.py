@@ -199,7 +199,12 @@ class EnergyDataCoordinator(DataUpdateCoordinator):
                 manufacturer = getattr(first_device, "brand_name", None)
                 model = getattr(first_device, "product_name_display", None)
 
-                # Aggregate Wh per operation mode across all physical devices
+                # Aggregate consumed electrical energy (Wh) per operation mode
+                # across all physical devices.
+                # Each device returns multiple DeviceData per operation_mode
+                # (one per energy_type: CONSUMED_ELECTRICAL_ENERGY,
+                # EARNED_ENVIRONMENT_ENERGY, HEAT_GENERATED, …).
+                # We want ONLY the consumed electrical energy.
                 energy: dict[str, float] = {}
                 for device in system.devices:
                     device_data_list = [
@@ -212,10 +217,15 @@ class EnergyDataCoordinator(DataUpdateCoordinator):
                         )
                     ]
                     for dd in device_data_list:
-                        if dd.operation_mode and dd.total_consumption_rounded is not None:
+                        if (
+                            dd.operation_mode
+                            and dd.total_consumption_rounded is not None
+                            and getattr(dd, "energy_type", None)
+                            == "CONSUMED_ELECTRICAL_ENERGY"
+                        ):
+                            value = max(0.0, dd.total_consumption_rounded)
                             energy[dd.operation_mode] = (
-                                energy.get(dd.operation_mode, 0.0)
-                                + dd.total_consumption_rounded
+                                energy.get(dd.operation_mode, 0.0) + value
                             )
                     _LOGGER.debug(
                         "Device %s contributed to energy totals: %s",
