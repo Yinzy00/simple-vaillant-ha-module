@@ -34,28 +34,16 @@ async def async_setup_entry(
 
     entities: list[EnergySensor] = []
     for system_id, payload in coordinator.data.items():
-        for de_index, device_data_list in enumerate(payload["devices_data"]):
-            for dd in device_data_list:
-                if dd.operation_mode in TARGET_OPERATION_MODES:
-                    entities.append(
-                        EnergySensor(
-                            system_id=system_id,
-                            de_index=de_index,
-                            operation_mode=dd.operation_mode,
-                            coordinator=coordinator,
-                        )
-                    )
+        for operation_mode in TARGET_OPERATION_MODES:
+            entities.append(
+                EnergySensor(
+                    system_id=system_id,
+                    operation_mode=operation_mode,
+                    coordinator=coordinator,
+                )
+            )
 
-    # Deduplicate: keep only the first occurrence per (system_id, device_uuid, operation_mode)
-    seen: set[str] = set()
-    unique_entities: list[EnergySensor] = []
-    for e in entities:
-        uid = e.unique_id
-        if uid not in seen:
-            seen.add(uid)
-            unique_entities.append(e)
-
-    async_add_entities(unique_entities)
+    async_add_entities(entities)
 
 
 class EnergySensor(CoordinatorEntity, SensorEntity):
@@ -67,70 +55,45 @@ class EnergySensor(CoordinatorEntity, SensorEntity):
     def __init__(
         self,
         system_id: str,
-        de_index: int,
         operation_mode: str,
         coordinator: EnergyDataCoordinator,
     ) -> None:
         super().__init__(coordinator)
         self._system_id = system_id
-        self._de_index = de_index
         self._operation_mode = operation_mode
 
     @property
-    def _device_data(self):
-        """Return the matching DeviceData for this sensor's operation_mode, or None."""
+    def _payload(self):
         if not self.coordinator.data:
             return None
-        payload = self.coordinator.data.get(self._system_id)
-        if not payload or len(payload["devices_data"]) <= self._de_index:
-            return None
-        device_data_list = payload["devices_data"][self._de_index]
-        return next(
-            (dd for dd in device_data_list if dd.operation_mode == self._operation_mode),
-            None,
-        )
+        return self.coordinator.data.get(self._system_id)
 
     @property
-    def _device(self):
-        """Return the Device object for this sensor, or None if data is unavailable."""
-        dd = self._device_data
-        return dd.device if dd is not None else None
+    def unique_id(self) -> str:
+        return f"{DOMAIN}_{self._system_id}_{self._operation_mode.lower()}"
 
     @property
-    def unique_id(self) -> str | None:
-        device = self._device
-        if device is None:
-            return None
-        return (
-            f"{DOMAIN}_{self._system_id}_{device.device_uuid}"
-            f"_{self._operation_mode.lower()}"
-        )
-
-    @property
-    def name(self) -> str | None:
-        device = self._device
-        if device is None:
-            return None
-        home_name = self.coordinator.data[self._system_id]["home_name"]
-        device_name = device.name_display
+    def name(self) -> str:
+        payload = self._payload
+        home_name = payload["home_name"] if payload else self._system_id
         mode_label = self._operation_mode.replace("_", " ").title()
-        return f"{home_name} {device_name} {mode_label}"
+        return f"{home_name} {mode_label}"
 
     @property
     def native_value(self) -> float | None:
-        dd = self._device_data
-        if dd is None:
+        payload = self._payload
+        if payload is None:
             return None
-        return dd.total_consumption_rounded
+        return payload["energy"].get(self._operation_mode)
 
     @property
     def device_info(self) -> DeviceInfo | None:
-        device = self._device
-        if device is None:
+        payload = self._payload
+        if payload is None:
             return None
         return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._system_id}_device_{device.device_uuid}")},
-            name=f"{self.coordinator.data[self._system_id]['home_name']} {device.name_display}",
-            manufacturer=device.brand_name,
-            model=device.product_name_display,
+            identifiers={(DOMAIN, self._system_id)},
+            name=payload["home_name"],
+            manufacturer=payload.get("manufacturer"),
+            model=payload.get("model"),
         )

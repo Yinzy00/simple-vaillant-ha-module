@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from myPyllant.api import MyPyllantAPI
 from myPyllant.enums import DeviceDataBucketResolution
 from myPyllant.http_client import AuthenticationFailed, LoginEndpointInvalid, RealmInvalid
-from myPyllant.models import DeviceData
+from myPyllant.models import DeviceData  # noqa: F401 (kept for TypedDict)
 
 from .const import DOMAIN, QUOTA_PAUSE_INTERVAL, API_DOWN_PAUSE_INTERVAL
 
@@ -24,7 +24,10 @@ _LOGGER = logging.getLogger(__name__)
 
 class SystemEnergyPayload(TypedDict):
     home_name: str
-    devices_data: list[list[DeviceData]]
+    manufacturer: str | None
+    model: str | None
+    # Aggregated energy in Wh per operation mode across ALL physical devices
+    energy: dict[str, float]
 
 
 def _is_quota_exceeded_exception(exc_info: BaseException | None) -> bool:
@@ -192,7 +195,12 @@ class EnergyDataCoordinator(DataUpdateCoordinator):
                 )
 
                 home_name = system.home.home_name or system.home.nomenclature
-                devices_data: list[list[DeviceData]] = []
+                first_device = system.devices[0]
+                manufacturer = getattr(first_device, "brand_name", None)
+                model = getattr(first_device, "product_name_display", None)
+
+                # Aggregate Wh per operation mode across all physical devices
+                energy: dict[str, float] = {}
                 for device in system.devices:
                     device_data_list = [
                         dd
@@ -203,11 +211,23 @@ class EnergyDataCoordinator(DataUpdateCoordinator):
                             end,
                         )
                     ]
-                    devices_data.append(device_data_list)
+                    for dd in device_data_list:
+                        if dd.operation_mode and dd.total_consumption_rounded is not None:
+                            energy[dd.operation_mode] = (
+                                energy.get(dd.operation_mode, 0.0)
+                                + dd.total_consumption_rounded
+                            )
+                    _LOGGER.debug(
+                        "Device %s contributed to energy totals: %s",
+                        getattr(device, "device_uuid", device),
+                        energy,
+                    )
 
                 data[system.id] = {
                     "home_name": home_name,
-                    "devices_data": devices_data,
+                    "manufacturer": manufacturer,
+                    "model": model,
+                    "energy": energy,
                 }
 
             return data
